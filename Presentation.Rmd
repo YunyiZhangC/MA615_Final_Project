@@ -1,0 +1,148 @@
+---
+title: "615_final_project -- NYC Restaurant Week"
+author: "Yunyi Zhang"
+date: "16/12/2019"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(kableExtra)
+library(wordcloud)
+library(htmlwidgets)
+library(tm)
+library(SnowballC)
+```
+
+
+## Introduction
+
+In 2018, many restaurants in New York City held a special one week activity called NYC Restaurant Week which they offer many dinner deals. By using the dataset from OpenTable's website, The goal to explore how different type of restaurants performed during this special event. The dataset is avaliable from https://www.kaggle.com/popoandrew/restaurant-week-2018.
+
+## Research Questions
+
+- Summary and analysis on different type of restaurant. \n
+- Relationship between type and rating \n
+- Word Analysis \n
+
+## Brief summary of the dataset
+
+There are in total 348 restaurants with 22 variables, e.g. "Average Rating", "type of restaurant", "locations" and so on. I am only interested in reviews, restaurant type, description, so I filtered out some unused variables.
+```{r, echo = FALSE}
+data <- read.csv("restaurant_week_2018_final.csv")
+
+datac <- data[,-c(2,3,5,6)]
+#datac$average_review <- round(datac$average_review, digit = 3)
+datac$restaurant_main_type <- as.character(datac$restaurant_main_type)
+datac$description <- as.character(datac$description)
+
+```
+
+
+There are in total 17 type of restaurant(by food), and the average rating ranged from 3.75 to 4.88. Number of reviews varies from and up to 18139 reviews.
+
+## Tables and Plots -- Number of resaurant for each type
+
+```{r, echo=FALSE}
+invisible(unique(datac$restaurant_main_type))
+datac <- datac %>%
+  group_by(restaurant_main_type)
+kable(count(datac))%>%
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "center")
+```
+
+## Tables and Plots -- Average rating for each type
+
+Steakhouse has the highest overall average rating with 4.59, wfollowed by southeast Asian food with 4.58. While Chinese food has the lowest rating with 4.38 on average.
+```{r, echo = FALSE, fig.height = 3, fig.width = 5}
+ggplot(datac, aes(x=reorder(restaurant_main_type, average_review),y = average_review,group = restaurant_main_type)) +
+  geom_boxplot(fill = "gray") +
+  ylim(3.7,5.0) +
+  labs(title="Rating for each type of restaurant ", x="Rating") +
+  coord_flip()
+```
+
+## Tables and Plots -- Average rating for each type
+
+``` {r, echo = FALSE,fig.height = 3, fig.width = 5}
+rt = aggregate(datac[,c('average_review')], list(datac$restaurant_main_type), FUN = mean)
+kable(rt, booktabs=TRUE, digits = 2, col.names = c("Restaurant Type", "Average Rating"), align = "c")
+```
+
+## Tables and Plots -- Average rating versus Number of Reviews
+
+From the graph we can see that there is a tendency that more reviews means a higher rating, except those with rating higher than 4.8. This make sense because better restaurant usually attract more customers which lead to higher amount of reviews.
+```{r, echo = FALSE, fig.height = 3, fig.width = 5}
+ggplot(data = datac, aes(datac$average_review), ) +
+  geom_histogram( breaks = seq(3.6,5.0,by=0.2), col = "grey", fill = "cyan3") +     scale_x_continuous(breaks=seq(3.6, 5.0, 0.2)) +
+  scale_y_continuous(breaks=seq(0, 200, 20))+
+  labs( x="Average Rating", y="Count") 
+  
+```
+
+## Text analysis
+I seperate all restaurant into three tiers. The first tier rate from 4.6-5.0, the second rate from 4.2-4.6, and the third rate from 3.8-4.2
+```{r, echo = FALSE}
+#Seperate rating into 6 catagries
+third_tier<-datac%>%filter(average_review<4.2&average_review>=3.8)%>%dplyr::select(average_review, description, restaurant_main_type)
+
+second_tier<-datac%>%filter(average_review<4.6&average_review>=4.2)%>%dplyr::select(average_review, description, restaurant_main_type)
+
+
+
+first_tier<-datac%>%filter(average_review<5.0&average_review>=4.6)%>%dplyr::select(average_review, description, restaurant_main_type)
+```
+
+## The wordCloud for rating 3.8~4.2
+Since there is not many restaurant in this range, the result shows that only four type of food. 
+```{r, echo = FALSE, warning = FALSE, fig.height = 4, fig.width = 4}
+thrCorpus <- VCorpus(VectorSource(third_tier$restaurant_main_type))
+thrCorpus <- tm_map(thrCorpus, removePunctuation)
+thrCorpus <- tm_map(thrCorpus, PlainTextDocument)
+thrCorpus <- tm_map(thrCorpus, removeWords, stopwords('english'))
+tdm1 = TermDocumentMatrix(thrCorpus)
+tdm1 = as.matrix(tdm1)
+word_freqs1 = sort(rowSums(tdm1), decreasing=TRUE)
+dm1 = data.frame(word=names(word_freqs1), freq=word_freqs1)
+set.seed(111)
+wordcloud(words=dm1$word, freq1=dm1$freq, max.words = 100, random.order = FALSE)#wordcloud(second_tier, max.words = 100, random.order = FALSE)
+```
+
+## The wordCloud for rating 4.2~4.6
+The american and italian are the two major type of food in this range, and one reason is that there is a large number of restaurant selling these two type of food. However, we can also see French and Steakhouse on the map, which does not as populous as the previous two. We confirm the result that French and steakhouse may have a higher rating.
+```{r, echo = FALSE,fig.height = 3, fig.width = 3}
+secCorpus <- VCorpus(VectorSource(second_tier$restaurant_main_type))
+secCorpus <- tm_map(secCorpus, removePunctuation)
+secCorpus <- tm_map(secCorpus, PlainTextDocument)
+secCorpus <- tm_map(secCorpus, removeWords, stopwords('english'))
+tdm = TermDocumentMatrix(secCorpus)
+tdm = as.matrix(tdm)
+word_freqs = sort(rowSums(tdm), decreasing=TRUE)
+dm = data.frame(word=names(word_freqs), freq=word_freqs)
+set.seed(222)
+wordcloud(words=dm$word, freq=dm$freq, max.words = 100, random.order = FALSE)
+```
+
+## The wordCloud for rating 4.6~5.0
+Italian restaurant is the major type of food in this range, following by American and steakhouse. This further proved our statement that Steakhouse in general could receive a higher rating. However, it is quite surprised that we could not see many French restaurant in this range, and instead,  we see some Japanese and Krean and contributed a lot in this range.
+```{r, echo = FALSE, fig.height = 3, fig.width = 3}
+firCorpus <- VCorpus(VectorSource(first_tier$restaurant_main_type))
+firCorpus <- tm_map(firCorpus, removePunctuation)
+firCorpus <- tm_map(firCorpus, PlainTextDocument)
+firCorpus <- tm_map(firCorpus, removeWords, stopwords('english'))
+tdm2 = TermDocumentMatrix(firCorpus)
+tdm2 = as.matrix(tdm2)
+word_freqs2 = sort(rowSums(tdm2), decreasing=TRUE)
+dm2 = data.frame(word=names(word_freqs2), freq=word_freqs2)
+set.seed(333)
+wordcloud(words=dm2$word, freq=dm2$freq, max.words = 100, random.order = FALSE)
+```
+
+## Conclusion
+From the data analysis we can see that While Italian and American are the two most popular cuision in NYC, in general, steakhouse, French and Italian tend to have a better rating among all types of food. 
+
+In the future, I would also love the compare price and rating to see if there is a relationship between them.
